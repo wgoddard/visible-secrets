@@ -1,0 +1,28 @@
+{
+  "name": "visible-secrets",
+  "version": "0.0.0",
+  "description": "Whitenight Melbourne project",
+  "main": "index.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@heroku.com:visible-secrets.git"
+  },
+  "keywords": [
+    "whitenight",
+    "melbourne",
+    "game",
+    "play",
+    "secrets",
+    "code",
+    "twitter"
+  ],
+  "author": "William Goddard",
+  "license": "ISC",
+  "dependencies": {
+    "logfmt": "~0.21.0",
+    "express": "~3.4.8"
+  }
+}
