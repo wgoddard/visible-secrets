@@ -23,6 +23,10 @@
   "license": "ISC",
   "dependencies": {
     "logfmt": "~0.21.0",
-    "express": "~3.4.8"
+    "express": "~3.4.8",
+    "twit": "~1.1.12",
+    "passport": "~0.2.0",
+    "passport-twitter": "~1.0.2",
+    "mongoose": "~3.8.7"
   }
 }
