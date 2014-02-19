@@ -30,9 +30,11 @@ app.use(passport.session());
 app.use(logfmt.requestLogger());
 
 //twitter codes
-var consumerKey = process.env.TWITTER_CONSUMER_KEY
+var consumerKey = process.env.TWITTER_CONSUMER_KEY;
 var consumerSecret = process.env.TWITTER_CONSUMER_SECRET;
 //
+var botKey = process.env.TWITTER_BOT_CONSUMER_KEY;
+var botSecret = process.env.TWITTER_BOT_CONSUMER_SECRET;
 var accessToken = process.env.TWIT_USER_ACCESS_TOKEN;
 var accessTokenSecret = process.env.TWIT_USER_ACCESS_TOKEN_SECRET;
 
@@ -77,8 +79,8 @@ passport.deserializeUser(function (uid, done) {
 //twitter setup (this is the twitter API client, for the twitter bot)
 var Twit = require('twit')
 var T = new Twit({
-    consumer_key: consumerKey
-  , consumer_secret: consumerSecret
+    consumer_key: botKey
+  , consumer_secret: botSecret
   , access_token:  accessToken//this access token for VS_HQ
   , access_token_secret: accessTokenSecret
 })
@@ -167,6 +169,25 @@ app.get('/target', function (req, res) {
             res.send('Failed to find target');
         }
     })
+});
+
+app.get('/twest', function (req, res) {
+
+    if (req.user === undefined || req.user.username != "VS_HQ")
+    {
+        res.redirect('/');
+        return;
+    }
+
+    var status = req.query.message;
+    T.post('statuses/update', { status: status }, function (err, reply) {
+        if (err) {
+            res.send(err);
+        } else {
+            res.send("Status sent of " + status);
+        }
+    })
+ 
 });
 
 //This is the route to receive the callback from Twitter when the user authorizes the app
