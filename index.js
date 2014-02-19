@@ -155,6 +155,11 @@ app.get('/target', function (req, res) {
             if (req.user.username == user.username) {
                 res.send("You cannot target yourself");
             } else {
+
+                var status = 'Agent @' + req.user.username + ' you have been compromised.  Details of the perpetrator are as follows: @' + user.username;
+                T.post('statuses/update', { status: status }, function (err, reply) {
+                    
+                })
                 res.send(req.user.username + " targeted " + user.username + " and compromised target!");
             }
             
@@ -200,8 +205,3 @@ var port = Number(process.env.PORT || 5000);
 app.listen(port, function() {
     console.log("Listening on " + port);
 });
-
-
-T.post('statuses/update', { status: 'hello world!' }, function (err, reply) {
-    //
-})
