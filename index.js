@@ -16,7 +16,7 @@ var UserSchema = new Schema({
     created: { type: Date, default: Date.now }
 });
 
-mongoose.connect(process.env.MONGOHQ_URI);
+mongoose.connect(process.env.MONGODB_URI);
 mongoose.model('User', UserSchema);
 
 var User = mongoose.model('User');
@@ -30,8 +30,8 @@ app.use(passport.session());
 app.use(logfmt.requestLogger());
 
 //twitter codes
-var consumerKey = process.env.TWITTER_CONSUMER_KEY.toString();
-var consumerSecret = process.env.TWITTER_CONSUMER_SECRET.toString();
+var consumerKey = process.env.TWITTER_CONSUMER_KEY
+var consumerSecret = process.env.TWITTER_CONSUMER_SECRET;
 //
 var accessToken = process.env.TWIT_USER_ACCESS_TOKEN;
 var accessTokenSecret = process.env.TWIT_USER_ACCESS_TOKEN_SECRET;
