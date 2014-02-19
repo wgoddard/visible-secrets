@@ -158,7 +158,7 @@ app.get('/target', function (req, res) {
                 res.send("You cannot target yourself");
             } else {
 
-                var status = 'Agent @' + req.user.username + ' you have been compromised.  Details of the perpetrator are as follows: @' + user.username;
+                var status = 'Agent @' + user.username + ' you have been compromised.  Details of the perpetrator are as follows: @' + req.user.username;
                 T.post('statuses/update', { status: status }, function (err, reply) {
                     
                 })
