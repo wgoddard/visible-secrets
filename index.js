@@ -1,11 +1,25 @@
+// Visible Secrets Twitter-Bot game for White Night Melbourne February 2014
+// Code by written by William Goddard
+// Design by William Goddard, Harry Lee, Amani Naseem, Harrison Smith
+// Thanks to people helping at Exertion Games Lab: Robert Cercos, Jayden Smith, RMIT
+
+// In this simple twitter bot game, players are given unique codes to wear and associated with their twitter account
+// Players direct message these codes to this bot which informs them if and who they have spotted
+
+// Workflow:
+//  1. Player follows bot
+//  2. Game organizer associates code with player (e.g. DM to bot: "pair $username $code") (pair wilgoddard 3523453)
+//  3. Players send in codes to the twitter bot (e.g. DM to bot: "3523453")
+//  4. Players request stats (e.g. DM to bot: "stats")
+
 var express = require("express");
 var logfmt = require("logfmt");
 var app = express();
 var mongoose = require('mongoose');
 var Schema = mongoose.Schema;
 
+//This is the data schema used by Mongoose for our users.  See http://mongoosejs.com/docs/guide.html
 var UserSchema = new Schema({
-    provider: String,
     uid: String,
     name: String,
     image: String,
@@ -18,7 +32,7 @@ var UserSchema = new Schema({
     created: { type: Date, default: Date.now }
 });
 
-mongoose.connect(process.env.MONGODB_URI);
+mongoose.connect(process.env.MONGODB_URI); //e.g. mongodb://localhost/visible-secrets
 mongoose.model('User', UserSchema);
 
 var User = mongoose.model('User');
@@ -30,43 +44,41 @@ app.use(logfmt.requestLogger());
 //var consumerKey = process.env.TWITTER_CONSUMER_KEY;
 //var consumerSecret = process.env.TWITTER_CONSUMER_SECRET;
 //
-var botKey = process.env.TWITTER_BOT_CONSUMER_KEY;
-var botSecret = process.env.TWITTER_BOT_CONSUMER_SECRET;
-var accessToken = process.env.TWIT_USER_ACCESS_TOKEN;
-var accessTokenSecret = process.env.TWIT_USER_ACCESS_TOKEN_SECRET;
+var botKey = process.env.TWITTER_BOT_CONSUMER_KEY; //twitter api key (these variables are stored in the .env run with foreman or on heroku)
+var botSecret = process.env.TWITTER_BOT_CONSUMER_SECRET; //twitter api secret
+var accessToken = process.env.TWIT_USER_ACCESS_TOKEN; //user access token
+var accessTokenSecret = process.env.TWIT_USER_ACCESS_TOKEN_SECRET; //user access token secret
 
 //twitter setup (this is the twitter API client, for the twitter bot)
 var Twit = require('twit')
 var T = new Twit({
     consumer_key: botKey
   , consumer_secret: botSecret
-  , access_token:  accessToken//this access token for VS_HQ
+  , access_token:  accessToken //this access token for VS_HQ
   , access_token_secret: accessTokenSecret
 })
 
-//Twitter streams
-
+//Twitter streams using Twit
 var stream = T.stream('user', {})
-stream.on('direct_message', function (directMsg) {
+stream.on('direct_message', function (directMsg) { //unforunately this API does not give much filter control so we have to use logic
 
-    //The unique game code of the opponent
-    var code = directMsg['direct_message']['text'];
-    var senderUsername = directMsg['direct_message']['sender']['screen_name'];
-    var senderId = directMsg['direct_message']['sender']['id'];
+    var code = directMsg['direct_message']['text'];     //The message received (usually the unique game code)
+    var senderUsername = directMsg['direct_message']['sender']['screen_name']; //the username of the sender e.g. @wilgoddard
+    var senderId = directMsg['direct_message']['sender']['id'];  //the unique twitter id (number) - remember twitter users can change usernames, but this isn't handled
 
     console.log("Got a direct message of " + code + " from " + senderUsername + " who has id " + senderId);
 
-    //First let's process any pair user to code attempts (this is not authenticated, but you could easily add this by requiring senderId == a known uid
+    //First let's process any pair user to code attempts (this is not authenticated, but you could easily add this by requiring senderId == a known uid)
     var explode = code.replace("@", "");
     explode = explode.toLowerCase();
     explode = explode.split(" ");
-    if (explode.length == 3 && explode[0] == "pair") {
+    if (explode.length == 3 && explode[0] == "pair") { //The DM is definitely a pair command ("pair $string $string")
         console.log("pair message received");
         var pairUsername = explode[1];
         var pairCode = explode[2];
-        User.findOne({ username: pairUsername }, function (err, user) {
+        User.findOne({ username: pairUsername }, function (err, user) { //in order to pair a code to the user, let's check if we've got the username in db
             if (user) {
-                var isNewUser = (user.gamecode === undefined);
+                var isNewUser = (user.gamecode === undefined); //is this a new pair or repair? good to know for user feedback
                 user.gamecode = pairCode;
                 user.save(function (err) {
                     if (err) { throw err; }
@@ -85,6 +97,7 @@ stream.on('direct_message', function (directMsg) {
         return; //don't process other messages (yes should branch or something cleaner ;) )
     }
 
+    //provide some basic stats to users requesting
     if (code.toLowerCase() == "stats") {
         User.findOne({ uid: senderId }, function (err, user) {
             if (user) {
@@ -94,11 +107,13 @@ stream.on('direct_message', function (directMsg) {
         return;
     }
 
+    //We can't filter this out - basically went we send out a direct message it comes straight back into the stream
     if (senderId == 2350947464) { //this is the id of the twitter bot
         console.log("I'm not going to process the message I just sent out!");
         return;
     }
 
+    //This is the block processing the code and giving scores and notifications
     User.findOne({ gamecode: code }, function (err, targetUser) {
         if (targetUser) {
             if (senderId == targetUser.uid) {
@@ -113,15 +128,15 @@ stream.on('direct_message', function (directMsg) {
                     if (err) {
                         console.log(err);
                     } else {
-                        //check if the active user has spotted the target before
-                        var newSpot = true;
+                        //check if the active user has spotted the target before. You can only spot a player once
+                        var newSpot = true; 
                         for (var i = 0; i < activeUser.targets.length; ++i) {
                             if (activeUser.targets[i].uid == targetUser.uid) {
                                 newSpot = false;
                                 break;
                             }
                         }
-                        if (newSpot) {
+                        if (newSpot) { 
                             targetUser.beenSpottedCount++;
                             targetUser.attackers.push({ uid: activeUser.uid, username: activeUser.username });
                             targetUser.save(function (err) {
@@ -150,6 +165,8 @@ stream.on('direct_message', function (directMsg) {
     })
 })
 
+//To start the game, the user follows the bot which notifiies them to get a code from a game organizer
+//When the player gets a code from the game organized (search: pair) they can begin playing
 stream.on('follow', function (followEvent) {
 
     var id = followEvent['source']['id'];
@@ -183,7 +200,6 @@ stream.on('follow', function (followEvent) {
                 }
             } else {
                 var user = new User();
-                user.provider = "twitter";
                 user.uid = id;
                 user.username = followEvent['source']['screen_name'].toLowerCase();
                 user.name = followEvent['source']['name'];
