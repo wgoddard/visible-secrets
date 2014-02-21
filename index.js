@@ -85,9 +85,6 @@ var T = new Twit({
   , access_token_secret: accessTokenSecret
 })
 
-//These are the strings (work in progress) the twitter bot will tweet
-var compromisedMessage = 'Agent @{0} you have been compromised.  Details of the perpetrator are as follows: @{1}';
-
 
 //routes
 
@@ -126,11 +123,20 @@ app.get('/pair', function (req, res) {
     
     User.findOne({ username: twitterId }, function (err, user) {
         if (user) {
+            var isNewUser = (user.gamecode === undefined);
             user.gamecode = code;
             user.save(function (err) {
                 if (err) { throw err; }
             });
-            res.send("paired " + twitterId + " with " + code + "<br><br>" + user);
+            
+            if (isNewUser) {
+                T.post('statuses/update', { status: "@" + twitterId + " welcome to #whitenightgame" }, function (err, reply) {
+
+                })
+                res.send("paired " + twitterId + " with " + code + " and they are now ready to play!<br><br>" + user);
+            } else {
+                res.send("re-paired " + twitterId + " with " + code + " and they are now ready to play!<br><br>" + user);
+            }
         } else {
             res.send('no luck finding user, check case');
         }
@@ -158,9 +164,12 @@ app.get('/target', function (req, res) {
                 res.send("You cannot target yourself");
             } else {
 
-                var status = 'Agent @' + user.username + ' you have been compromised.  Details of the perpetrator are as follows: @' + req.user.username;
+                var status = '@' + user.username + ' was #spotted playing #whitenightgame with @' + req.user.username;
                 T.post('statuses/update', { status: status }, function (err, reply) {
                     
+                })
+                T.post('direct_messages/new', { user_id: senderId, text: "You're now playing #whitenightgame. Message me codes you spot here!" }, function (err, reply) {
+
                 })
                 res.send(req.user.username + " targeted " + user.username + " and compromised target!");
             }
@@ -220,6 +229,137 @@ app.get('/', function (req, res) {
         }
     }
 });
+
+app.get('/newtest', function (req, res) {
+
+    var user = new User();
+    user.provider = "twitter";
+    user.uid = 'testId';
+    user.username = 'bobby';
+    user.name = 'displayName';
+    user.image = 'url';
+    user.save(function (err) {
+        if (err) { throw err; }
+        res.send("Created user: " + user);
+    });
+});
+
+
+//Twitter streams
+
+var stream = T.stream('user', {})
+
+stream.on('direct_message', function (directMsg) {
+
+    //The unique game code of the opponent
+    var code = directMsg['direct_message']['text'];
+    var senderUsername = directMsg['direct_message']['sender']['screen_name'];
+    var senderId = directMsg['direct_message']['sender']['id'];
+
+    console.log("Got a direct message of " + code + " from " + senderUsername);
+
+    if (senderId == 2350947464) { //this is the id of the twitter bot
+        console.log("I am going to ignore messages that I send!");
+        return;
+
+    }
+
+    //T.post('direct_messages/new', { user_id: id, text: "Thanks for following! Now get a code from the organizers!" }, function (err, reply) {
+
+    User.findOne({ gamecode: code }, function (err, user) {
+        if (user) {
+            if (senderUsername == user.username) {
+                
+                console.log("targetted yourself!");
+                T.post('direct_messages/new', { user_id: senderId, text: "You cannot target yourself silly!" }, function (err, reply) {
+                    
+                })
+
+
+            } else {
+                console.log("compromised!");
+                var status = '@' + user.username + ' you were #spotted playing #whitenightgame by @' + senderUsername;
+                T.post('statuses/update', { status: status }, function (err, reply) {
+
+                })
+
+                T.post('direct_messages/new', { user_id: senderId, text: "You spotted @" + user.username + "!" }, function (err, reply) {
+
+                })
+
+                //need to record the compromise, count it, and make sure it doesn't happen with the same people again
+            }
+
+        } else {
+            console.log("couldn't find user");
+            T.post('direct_messages/new', { user_id: senderId, text: "Couldn't find the user... be sure just to enter the code!" }, function (err, reply) {
+
+            })
+        }
+    })
+})
+
+stream.on('follow', function (followEvent) {
+
+    var id = followEvent['source']['id'];
+
+    console.log("About to follow back " + id);
+
+
+    T.post('friendships/create', { id: id }, function (err, reply) {
+
+        if (err) {
+            console.log(err);
+        } else {
+            console.log("Created a friendship with " + id);
+        }
+
+        User.findOne({ uid: id }, function (err, user) {
+            if (user) {
+                if (user.gamecode === undefined) {
+                    T.post('direct_messages/new', { user_id: id, text: "Get a code from the organizers! So you can play #whitenightgame" }, function (err, reply) {
+
+                        console.log("Send a DM to " + id);
+                        if (err) {
+                            console.log(err);
+                        }
+                    })
+                } else {
+                    T.post('direct_messages/new', { user_id: id, text: "Welcome back to #whitenightgame!" }, function (err, reply) {
+
+                        console.log("Send a DM to " + id);
+                        if (err) {
+                            console.log(err);
+                        }
+                    })
+                }
+            } else {
+                var user = new User();
+                user.provider = "twitter";
+                user.uid = id;
+                user.username = followEvent['source']['screen_name'];
+                user.name = followEvent['source']['name'];
+                user.image = followEvent['source']['profile_image_url'];;
+                user.save(function (err) {
+                    if (err) { throw err; }
+                    console.log("Added " + user.username + " to db");
+                });
+                T.post('direct_messages/new', { user_id: id, text: "Get a code from the organizers! So you can play #whitenightgame" }, function (err, reply) {
+
+                    console.log("Send a DM to " + id);
+                    if (err) {
+                        console.log(err);
+                    }
+                })
+            }
+        })
+
+
+    })
+})
+
+
+
 
 
 var port = Number(process.env.PORT || 5000);
