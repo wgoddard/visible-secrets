@@ -11,6 +11,10 @@ var UserSchema = new Schema({
     image: String,
     username: String,
     gamecode: String,
+    targets: [{ uid: String, username: String, date: { type: Date, default: Date.now } }],
+    attackers: [{ uid: String, username: String, date: { type: Date, default: Date.now } }],
+    beenSpottedCount: { type: Number, default: 0 }, //this should be the samse as the size of the attackers array (for convenience)
+    spottedCount: { type: Number, default: 0 }, //this should be the same as the size of the targets array
     created: { type: Date, default: Date.now }
 });
 
@@ -81,25 +85,62 @@ stream.on('direct_message', function (directMsg) {
         return; //don't process other messages (yes should branch or something cleaner ;) )
     }
 
+    if (code.toLowerCase() == "stats") {
+        User.findOne({ uid: senderId }, function (err, user) {
+            if (user) {
+                T.post('direct_messages/new', { user_id: senderId, text: "You have spotted " + user.spottedCount  + " players and been spotted " + user.beenSpottedCount + " times" }, function (err, reply) { })
+            }
+        })
+        return;
+    }
+
     if (senderId == 2350947464) { //this is the id of the twitter bot
         console.log("I'm not going to process the message I just sent out!");
         return;
     }
 
-    User.findOne({ gamecode: code }, function (err, user) {
-        if (user) {
-            if (senderId == user.uid) {
+    User.findOne({ gamecode: code }, function (err, targetUser) {
+        if (targetUser) {
+            if (senderId == targetUser.uid) {
                 
                 console.log("targetted yourself!");
                 T.post('direct_messages/new', { user_id: senderId, text: "You cannot target yourself silly!" }, function (err, reply) {})
 
             } else {
                 console.log("compromised!");
-                var status = '@' + user.username + ' you were #spotted playing #visiblesecrets by @' + senderUsername;
-                T.post('statuses/update', { status: status }, function (err, reply) { })
-                T.post('direct_messages/new', { user_id: senderId, text: "You spotted @" + user.username + "!" }, function (err, reply) { })
+                User.findOne({ uid: senderId }, function (err, activeUser) {
 
-                //need to record the compromise, count it, and make sure it doesn't happen with the same people again
+                    if (err) {
+                        console.log(err);
+                    } else {
+                        //check if the active user has spotted the target before
+                        var newSpot = true;
+                        for (var i = 0; i < activeUser.targets.length; ++i) {
+                            if (activeUser.targets[i].uid == targetUser.uid) {
+                                newSpot = false;
+                                break;
+                            }
+                        }
+                        if (newSpot) {
+                            targetUser.beenSpottedCount++;
+                            targetUser.attackers.push({ uid: activeUser.uid, username: activeUser.username });
+                            targetUser.save(function (err) {
+                                if (err) { throw err; }
+                            });
+                            activeUser.targets.push({ uid: targetUser.uid, username: targetUser.username });
+                            activeUser.spottedCount++;
+                            activeUser.save(function (err) {
+                                if (err) { throw err; }
+                            });
+                            var status = '@' + targetUser.username + ' was #spotted playing #visiblesecrets by @' + senderUsername;
+                            T.post('statuses/update', { status: status }, function (err, reply) { })
+                            T.post('direct_messages/new', { user_id: senderId, text: "You spotted @" + targetUser.username + "!" }, function (err, reply) { })
+                        } else { //this person has already targetted this player before
+                            T.post('direct_messages/new', { user_id: senderId, text: "You've already spotted @" + targetUser.username + "!" }, function (err, reply) { })
+                        }
+                    }
+
+                })
             }
 
         } else {
