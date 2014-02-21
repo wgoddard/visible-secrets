@@ -53,8 +53,10 @@ stream.on('direct_message', function (directMsg) {
     console.log("Got a direct message of " + code + " from " + senderUsername + " who has id " + senderId);
 
     //First let's process any pair user to code attempts (this is not authenticated, but you could easily add this by requiring senderId == a known uid
-    var explode = code.split(" ");
-    if (explode.length == 3 && explode[0].toLowerCase() == "pair") {
+    var explode = code.replace("@", "");
+    explode = explode.toLowerCase();
+    explode = explode.split(" ");
+    if (explode.length == 3 && explode[0] == "pair") {
         console.log("pair message received");
         var pairUsername = explode[1];
         var pairCode = explode[2];
@@ -86,7 +88,7 @@ stream.on('direct_message', function (directMsg) {
 
     User.findOne({ gamecode: code }, function (err, user) {
         if (user) {
-            if (senderUsername == user.username) {
+            if (senderId == user.uid) {
                 
                 console.log("targetted yourself!");
                 T.post('direct_messages/new', { user_id: senderId, text: "You cannot target yourself silly!" }, function (err, reply) {})
@@ -142,7 +144,7 @@ stream.on('follow', function (followEvent) {
                 var user = new User();
                 user.provider = "twitter";
                 user.uid = id;
-                user.username = followEvent['source']['screen_name'];
+                user.username = followEvent['source']['screen_name'].toLowerCase();
                 user.name = followEvent['source']['name'];
                 user.image = followEvent['source']['profile_image_url'];;
                 user.save(function (err) {
